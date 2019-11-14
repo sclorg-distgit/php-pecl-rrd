@@ -1,29 +1,35 @@
+# centos/sclo spec file for php-pecl-rrd, from:
+#
 # remipo spec file for php-pecl-rrd
 # with SCL compatibility, from:
 #
 # Fedora spec file for php-pecl-rrd
 #
-# Copyright (c) 2011-2018 Remi Collet
+# Copyright (c) 2011-2019 Remi Collet
 # License: CC-BY-SA
 # http://creativecommons.org/licenses/by-sa/4.0/
 #
 # Please, preserve the changelog entries
 #
 
-# we don't want -z defs linker flag
-%undefine _strict_symbol_defs_build
+%if 0%{?scl:1}
+%global sub_prefix %{scl_prefix}
+%if "%{scl}" == "rh-php72"
+%global sub_prefix sclo-php72-
+%endif
+%if "%{scl}" == "rh-php73"
+%global sub_prefix sclo-php73-
+%endif
+%scl_package        php-pecl-rrd
+%endif
 
-%{?scl:          %scl_package        php-pecl-rrd}
-
-%global with_zts  0%{!?_without_zts:%{?__ztsphp:1}}
 %global pecl_name rrd
 %global ini_name  40-%{pecl_name}.ini
-#global prever    beta3
 
 Summary:      PHP Bindings for rrdtool
-Name:         %{?scl_prefix}php-pecl-rrd
+Name:         %{?sub_prefix}php-pecl-rrd
 Version:      2.0.1
-Release:      7%{?dist}%{!?scl:%{!?nophptag:%(%{__php} -r 'echo ".".PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')}}
+Release:      1%{?dist}
 License:      BSD
 URL:          http://pecl.php.net/package/rrd
 
@@ -37,7 +43,6 @@ BuildRequires: %{?scl_prefix}php-pear
 
 Requires:     %{?scl_prefix}php(zend-abi) = %{php_zend_api}
 Requires:     %{?scl_prefix}php(api) = %{php_core_api}
-%{?_sclreq:Requires: %{?scl_prefix}runtime%{?_sclreq}%{?_isa}}
 
 Conflicts:    %{?scl_prefix}rrdtool-php
 Provides:     %{?scl_prefix}php-%{pecl_name}               = %{version}
@@ -49,48 +54,10 @@ Provides:     %{?scl_prefix}php-pecl-%{pecl_name}          = %{version}-%{releas
 Provides:     %{?scl_prefix}php-pecl-%{pecl_name}%{?_isa}  = %{version}-%{release}
 %endif
 
-%if "%{?vendor}" == "Remi Collet" && 0%{!?scl:1} && 0%{?rhel}
-# Other third party repo stuff
-Obsoletes:     php53-pecl-%{pecl_name}  <= %{version}
-Obsoletes:     php53u-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php54-pecl-%{pecl_name}  <= %{version}
-Obsoletes:     php54w-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php55u-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php55w-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php56u-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php56w-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php70u-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php70w-pecl-%{pecl_name} <= %{version}
-%if "%{php_version}" > "7.1"
-Obsoletes:     php71u-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php71w-pecl-%{pecl_name} <= %{version}
-%endif
-%if "%{php_version}" > "7.2"
-Obsoletes:     php72u-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php72w-pecl-%{pecl_name} <= %{version}
-%endif
-%if "%{php_version}" > "7.3"
-Obsoletes:     php73-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php73w-pecl-%{pecl_name} <= %{version}
-%endif
-%if "%{php_version}" > "7.4"
-Obsoletes:     php74-pecl-%{pecl_name} <= %{version}
-Obsoletes:     php74w-pecl-%{pecl_name} <= %{version}
-%endif
-%endif
-
-%if 0%{?fedora} < 20 && 0%{?rhel} < 7
-# Filter shared private
-%{?filter_provides_in: %filter_provides_in %{_libdir}/.*\.so$}
-%{?filter_setup}
-%endif
-
 
 %description
 Procedural and simple OO wrapper for rrdtool - data logging and graphing
 system for time series data.
-
-Package built for PHP %(%{__php} -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')%{?scl: as Software Collection (%{scl} by %{?scl_vendor}%{!?scl_vendor:rh})}.
 
 
 %prep 
@@ -104,7 +71,6 @@ sed -e 's/role="test"/role="src"/' \
     -i package.xml
 
 cd NTS
-
 # Sanity check, really often broken
 extver=$(sed -n '/#define PHP_RRD_VERSION/{s/.* "//;s/".*$//;p}' php_rrd.h)
 if test "x${extver}" != "x%{version}%{?prever}"; then
@@ -118,30 +84,15 @@ cat > %{ini_name} << 'EOF'
 extension=%{pecl_name}.so
 EOF
 
-%if %{with_zts}
-cp -r  NTS ZTS
-%endif
-
 
 %build
-%{?dtsenable}
-
 cd NTS
 %{_bindir}/phpize
 %configure --with-php-config=%{_bindir}/php-config
 make %{?_smp_mflags}
 
-%if %{with_zts}
-cd ../ZTS
-%{_bindir}/zts-phpize
-%configure --with-php-config=%{_bindir}/zts-php-config
-make %{?_smp_mflags}
-%endif
-
 
 %install
-%{?dtsenable}
-
 make install -C NTS INSTALL_ROOT=%{buildroot}
 
 # Drop in the bit of configuration
@@ -150,11 +101,6 @@ install -D -m 644 %{ini_name} %{buildroot}%{php_inidir}/%{ini_name}
 # Install XML package description
 install -D -m 644 package.xml %{buildroot}%{pecl_xmldir}/%{name}.xml
 
-%if %{with_zts}
-make install -C ZTS INSTALL_ROOT=%{buildroot}
-install -D -m 644 %{ini_name} %{buildroot}%{php_ztsinidir}/%{ini_name}
-%endif
-
 # Documentation
 for i in $(grep 'role="doc"' package.xml | sed -e 's/^.*name="//;s/".*$//')
 do install -Dpm 644 NTS/$i %{buildroot}%{pecl_docdir}/%{pecl_name}/$i
@@ -162,12 +108,6 @@ done
 
 
 %check
-%if %{with_zts}
-%{__ztsphp} --no-php-ini \
-    --define extension=%{buildroot}%{php_ztsextdir}/%{pecl_name}.so \
-    --modules | grep %{pecl_name}
-%endif
-
 %{__php} --no-php-ini \
     --define extension=%{buildroot}%{php_extdir}/%{pecl_name}.so \
     --modules | grep %{pecl_name}
@@ -197,7 +137,6 @@ TEST_PHP_EXECUTABLE=%{_bindir}/php \
    run-tests.php --show-diff
 
 
-%if 0%{?fedora} < 24 && 0%{?rhel} < 8
 # when pear installed alone, after us
 %triggerin -- %{?scl_prefix}php-pear
 if [ -x %{__pecl} ] ; then
@@ -214,7 +153,6 @@ fi
 if [ $1 -eq 0 -a -x %{__pecl} ] ; then
     %{pecl_uninstall} %{pecl_name} >/dev/null || :
 fi
-%endif
 
 
 %files
@@ -225,13 +163,11 @@ fi
 %config(noreplace) %{php_inidir}/%{ini_name}
 %{php_extdir}/%{pecl_name}.so
 
-%if %{with_zts}
-%config(noreplace) %{php_ztsinidir}/%{ini_name}
-%{php_ztsextdir}/%{pecl_name}.so
-%endif
-
 
 %changelog
+* Thu Nov 14 2019 Remi Collet <remi@remirepo.net> - 2.0.1-1
+- cleanup for centos/sclo
+
 * Tue Sep 03 2019 Remi Collet <remi@remirepo.net> - 2.0.1-7
 - rebuild for 7.4.0RC1
 
